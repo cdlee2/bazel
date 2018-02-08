@@ -46,6 +46,7 @@ import com.google.devtools.remoteexecution.v1test.GetActionResultRequest;
 import com.google.devtools.remoteexecution.v1test.UpdateActionResultRequest;
 import io.grpc.CallCredentials;
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.io.ByteArrayOutputStream;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
 /** A RemoteActionCache implementation that uses gRPC calls to a remote cache server. */
 @ThreadSafe
@@ -70,6 +72,7 @@ public class GrpcRemoteCache extends AbstractRemoteActionCache {
   private final ByteStreamUploader uploader;
   private final ListeningScheduledExecutorService retryScheduler =
       MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1));
+  private final RpcLogger rpcLogger;
 
   @VisibleForTesting
   public GrpcRemoteCache(
@@ -78,33 +81,58 @@ public class GrpcRemoteCache extends AbstractRemoteActionCache {
       RemoteOptions options,
       RemoteRetrier retrier,
       DigestUtil digestUtil) {
+    this(channel, credentials, options, retrier, digestUtil, null);
+  }
+
+  @VisibleForTesting
+  public GrpcRemoteCache(
+      Channel channel,
+      CallCredentials credentials,
+      RemoteOptions options,
+      RemoteRetrier retrier,
+      DigestUtil digestUtil,
+      @Nullable RpcLogger rpcLogger) {
     super(digestUtil);
     this.options = options;
     this.credentials = credentials;
     this.channel = channel;
     this.retrier = retrier;
+    this.rpcLogger = rpcLogger;
 
     uploader = new ByteStreamUploader(options.remoteInstanceName, channel, credentials,
-        options.remoteTimeout, retrier, retryScheduler);
+        options.remoteTimeout, retrier, retryScheduler, rpcLogger);
+  }
+
+  private ClientInterceptor[] getInterceptors() {
+    return getInterceptors(true);
+  }
+
+  private ClientInterceptor[] getInterceptors(boolean logData) {
+    ArrayList<ClientInterceptor> interceptors = new ArrayList<>();
+    if (rpcLogger != null) {
+      interceptors.add(new LoggingInterceptor(rpcLogger, logData));
+    }
+    interceptors.add(TracingMetadataUtils.attachMetadataFromContextInterceptor());
+    return Iterables.toArray(interceptors, ClientInterceptor.class);
   }
 
   private ContentAddressableStorageBlockingStub casBlockingStub() {
     return ContentAddressableStorageGrpc.newBlockingStub(channel)
-        .withInterceptors(TracingMetadataUtils.attachMetadataFromContextInterceptor())
+        .withInterceptors(getInterceptors())
         .withCallCredentials(credentials)
         .withDeadlineAfter(options.remoteTimeout, TimeUnit.SECONDS);
   }
 
   private ByteStreamBlockingStub bsBlockingStub() {
     return ByteStreamGrpc.newBlockingStub(channel)
-        .withInterceptors(TracingMetadataUtils.attachMetadataFromContextInterceptor())
+        .withInterceptors(getInterceptors(false))
         .withCallCredentials(credentials)
         .withDeadlineAfter(options.remoteTimeout, TimeUnit.SECONDS);
   }
 
   private ActionCacheBlockingStub acBlockingStub() {
     return ActionCacheGrpc.newBlockingStub(channel)
-        .withInterceptors(TracingMetadataUtils.attachMetadataFromContextInterceptor())
+        .withInterceptors(getInterceptors())
         .withCallCredentials(credentials)
         .withDeadlineAfter(options.remoteTimeout, TimeUnit.SECONDS);
   }

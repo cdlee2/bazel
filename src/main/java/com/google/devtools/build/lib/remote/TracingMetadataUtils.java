@@ -18,6 +18,7 @@ import com.google.devtools.build.lib.analysis.BlazeVersionInfo;
 import com.google.devtools.build.lib.remote.DigestUtil.ActionKey;
 import com.google.devtools.remoteexecution.v1test.RequestMetadata;
 import com.google.devtools.remoteexecution.v1test.ToolDetails;
+import com.sun.org.apache.regexp.internal.RE;
 import io.grpc.ClientInterceptor;
 import io.grpc.Context;
 import io.grpc.Contexts;
@@ -88,6 +89,21 @@ public class TracingMetadataUtils {
     return headers;
   }
 
+  /**
+   * Extracts a {@link RequestMetadata} from a {@link Metadata} if it exists.
+   *
+   * @param headers
+   * @throws {@link IllegalStateException} if a RequestMetadata could not be found in the given
+   * headers.
+   */
+  public static RequestMetadata extractRequestMetadata(Metadata headers) {
+    RequestMetadata meta = headers.get(METADATA_KEY);
+    if (meta == null) {
+      throw new IllegalStateException("Could not find RequestMetadata in headers.");
+    }
+    return meta;
+  }
+
   public static ClientInterceptor attachMetadataFromContextInterceptor() {
     return MetadataUtils.newAttachHeadersInterceptor(headersFromCurrentContext());
   }
@@ -97,8 +113,10 @@ public class TracingMetadataUtils {
     @Override
     public <ReqT, RespT> Listener<ReqT> interceptCall(
         ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
-      RequestMetadata meta = headers.get(METADATA_KEY);
-      if (meta == null) {
+      RequestMetadata meta;
+      try {
+        meta = extractRequestMetadata(headers);
+      } catch (IllegalStateException e) {
         throw new IllegalStateException("RequestMetadata not received from the client.");
       }
       Context ctx = Context.current().withValue(CONTEXT_KEY, meta);

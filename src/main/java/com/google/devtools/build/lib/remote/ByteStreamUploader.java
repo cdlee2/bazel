@@ -38,6 +38,7 @@ import io.grpc.CallCredentials;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
+import io.grpc.ClientInterceptors;
 import io.grpc.Context;
 import io.grpc.Metadata;
 import io.grpc.Status;
@@ -94,6 +95,46 @@ final class ByteStreamUploader {
    * @param retryService the executor service to schedule retries on. It's the responsibility of the
    *     caller to properly shutdown the service after use. Users should avoid shutting down the
    *     service before {@link #shutdown()} has been called
+   * @param rpcLogger a logger to use to log gRPC calls. May be {@code null}, in which case logging
+   *     is not performed.
+   */
+  public ByteStreamUploader(
+      @Nullable String instanceName,
+      Channel channel,
+      @Nullable CallCredentials callCredentials,
+      long callTimeoutSecs,
+      RemoteRetrier retrier,
+      ListeningScheduledExecutorService retryService,
+      @Nullable RpcLogger rpcLogger) {
+    checkArgument(callTimeoutSecs > 0, "callTimeoutSecs must be gt 0.");
+
+    this.instanceName = instanceName;
+    if (rpcLogger != null) {
+      this.channel =
+          ClientInterceptors.intercept(channel, new LoggingInterceptor(rpcLogger, false));
+    } else {
+      this.channel = channel;
+    }
+    this.callCredentials = callCredentials;
+    this.callTimeoutSecs = callTimeoutSecs;
+    this.retrier = retrier;
+    this.retryService = retryService;
+  }
+
+  /**
+   * Creates a new instance.
+   *
+   * @param instanceName the instance name to be prepended to resource name of the {@code Write}
+   *     call. See the {@code ByteStream} service definition for details
+   * @param channel the {@link io.grpc.Channel} to use for calls
+   * @param callCredentials the credentials to use for authentication. May be {@code null}, in which
+   *     case no authentication is performed
+   * @param callTimeoutSecs the timeout in seconds after which a {@code Write} gRPC call must be
+   *     complete. The timeout resets between retries
+   * @param retrier the {@link RemoteRetrier} whose backoff strategy to use for retry timings.
+   * @param retryService the executor service to schedule retries on. It's the responsibility of the
+   *     caller to properly shutdown the service after use. Users should avoid shutting down the
+   *     service before {@link #shutdown()} has been called
    */
   public ByteStreamUploader(
       @Nullable String instanceName,
@@ -102,14 +143,8 @@ final class ByteStreamUploader {
       long callTimeoutSecs,
       RemoteRetrier retrier,
       ListeningScheduledExecutorService retryService) {
-    checkArgument(callTimeoutSecs > 0, "callTimeoutSecs must be gt 0.");
-
-    this.instanceName = instanceName;
-    this.channel = channel;
-    this.callCredentials = callCredentials;
-    this.callTimeoutSecs = callTimeoutSecs;
-    this.retrier = retrier;
-    this.retryService = retryService;
+    this(instanceName, channel, callCredentials, callTimeoutSecs, retrier, retryService,
+        null);
   }
 
   /**

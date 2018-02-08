@@ -15,6 +15,7 @@
 package com.google.devtools.build.lib.remote;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ThreadSafe;
 import com.google.devtools.remoteexecution.v1test.ExecuteRequest;
 import com.google.devtools.remoteexecution.v1test.ExecuteResponse;
@@ -30,10 +31,12 @@ import com.google.watcher.v1.WatcherGrpc;
 import com.google.watcher.v1.WatcherGrpc.WatcherBlockingStub;
 import io.grpc.CallCredentials;
 import io.grpc.Channel;
+import io.grpc.ClientInterceptor;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.protobuf.StatusProto;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -46,29 +49,49 @@ class GrpcRemoteExecutor {
   private final CallCredentials callCredentials;
   private final int callTimeoutSecs;
   private final RemoteRetrier retrier;
+  private final RpcLogger rpcLogger;
 
   public GrpcRemoteExecutor(
       Channel channel,
       @Nullable CallCredentials callCredentials,
       int callTimeoutSecs,
       RemoteRetrier retrier) {
+    this(channel, callCredentials, callTimeoutSecs, retrier, null);
+  }
+
+  public GrpcRemoteExecutor(
+      Channel channel,
+      @Nullable CallCredentials callCredentials,
+      int callTimeoutSecs,
+      RemoteRetrier retrier,
+      @Nullable RpcLogger rpcLogger) {
     Preconditions.checkArgument(callTimeoutSecs > 0, "callTimeoutSecs must be gt 0.");
     this.channel = channel;
     this.callCredentials = callCredentials;
     this.callTimeoutSecs = callTimeoutSecs;
     this.retrier = retrier;
+    this.rpcLogger = rpcLogger;
+  }
+
+  private ClientInterceptor[] getInterceptors() {
+    ArrayList<ClientInterceptor> interceptors = new ArrayList<>();
+    if (rpcLogger != null) {
+      interceptors.add(new LoggingInterceptor(rpcLogger, true));
+    }
+    interceptors.add(TracingMetadataUtils.attachMetadataFromContextInterceptor());
+    return Iterables.toArray(interceptors, ClientInterceptor.class);
   }
 
   private ExecutionBlockingStub execBlockingStub() {
     return ExecutionGrpc.newBlockingStub(channel)
-        .withInterceptors(TracingMetadataUtils.attachMetadataFromContextInterceptor())
+        .withInterceptors(getInterceptors())
         .withCallCredentials(callCredentials)
         .withDeadlineAfter(callTimeoutSecs, TimeUnit.SECONDS);
   }
 
   private WatcherBlockingStub watcherBlockingStub() {
     return WatcherGrpc.newBlockingStub(channel)
-        .withInterceptors(TracingMetadataUtils.attachMetadataFromContextInterceptor())
+        .withInterceptors(getInterceptors())
         .withCallCredentials(callCredentials);
   }
 

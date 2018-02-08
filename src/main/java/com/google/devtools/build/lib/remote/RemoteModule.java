@@ -28,7 +28,9 @@ import com.google.devtools.build.lib.runtime.CommandEnvironment;
 import com.google.devtools.build.lib.runtime.ServerBuilder;
 import com.google.devtools.build.lib.util.AbruptExitException;
 import com.google.devtools.build.lib.util.ExitCode;
+import com.google.devtools.build.lib.vfs.FileSystem;
 import com.google.devtools.build.lib.vfs.FileSystem.HashFunction;
+import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.common.options.OptionsBase;
 import com.google.devtools.common.options.OptionsProvider;
@@ -98,7 +100,8 @@ public final class RemoteModule extends BlazeModule {
     logger.info("Command: buildRequestId = " + buildRequestId + ", commandId = " + commandId);
     RemoteOptions remoteOptions = env.getOptions().getOptions(RemoteOptions.class);
     AuthAndTLSOptions authAndTlsOptions = env.getOptions().getOptions(AuthAndTLSOptions.class);
-    HashFunction hashFn = env.getRuntime().getFileSystem().getDigestFunction();
+    FileSystem fileSystem = env.getRuntime().getFileSystem();
+    HashFunction hashFn = fileSystem.getDigestFunction();
     DigestUtil digestUtil = new DigestUtil(hashFn);
     converter.options = remoteOptions;
     converter.digestUtil = digestUtil;
@@ -115,6 +118,14 @@ public final class RemoteModule extends BlazeModule {
       RemoteRetrier retrier =
           new RemoteRetrier(
               remoteOptions, RemoteRetrier.RETRIABLE_GRPC_ERRORS, Retrier.ALLOW_ALL_CALLS);
+
+      RpcLogger rpcLogger = null;
+      if (remoteOptions.experimentalRemoteExecutionLog != null) {
+        Path rpcLogPath =
+            FileSystemUtils.getWorkingDirectory(fileSystem)
+                .getRelative(remoteOptions.experimentalRemoteExecutionLog);
+        rpcLogger = new RpcLogger(this.getClass().getName(), rpcLogPath.getOutputStream());
+      }
       // TODO(davido): The naming is wrong here. "Remote"-prefix in RemoteActionCache class has no
       // meaning.
       final AbstractRemoteActionCache cache;
@@ -136,7 +147,8 @@ public final class RemoteModule extends BlazeModule {
                 GoogleAuthUtils.newCallCredentials(authAndTlsOptions),
                 remoteOptions,
                 retrier,
-                digestUtil);
+                digestUtil,
+                rpcLogger);
       } else {
         cache = null;
       }
@@ -148,7 +160,8 @@ public final class RemoteModule extends BlazeModule {
                 GoogleAuthUtils.newChannel(remoteOptions.remoteExecutor, authAndTlsOptions),
                 GoogleAuthUtils.newCallCredentials(authAndTlsOptions),
                 remoteOptions.remoteTimeout,
-                retrier);
+                retrier,
+                rpcLogger);
       } else {
         executor = null;
       }
