@@ -302,4 +302,12 @@ public final class BuildEventId implements Serializable {
                 BuildEventStreamProtos.BuildEventId.BuildToolLogsId.getDefaultInstance())
             .build());
   }
+
+  public static BuildEventId rpcCall() {
+    return new BuildEventId(
+        BuildEventStreamProtos.BuildEventId.newBuilder()
+            .setRpcCall(
+                BuildEventStreamProtos.BuildEventId.RpcCallId.getDefaultInstance())
+            .build());
+  }
 }

@@ -103,7 +103,7 @@ public class LoggingInterceptorTest {
 
     @SuppressWarnings("unchecked")
     LoggingHandler<ReadRequest, ReadResponse> handler = Mockito.mock(LoggingHandler.class);
-    Mockito.when(handler.getEntry()).thenReturn(LogEntry.getDefaultInstance());
+    Mockito.when(handler.getDetails()).thenReturn(LogEntry.getDefaultInstance());
 
     LoggingInterceptor interceptor = getInterceptorWithAlwaysThisHandler(handler);
     Channel channel =
@@ -114,7 +114,7 @@ public class LoggingInterceptorTest {
     stub.read(request).next();
     verify(handler).handleReq(request);
     verify(handler).handleResp(response);
-    verify(handler).getEntry();
+    verify(handler).getDetails();
   }
 
   @Test
@@ -136,7 +136,7 @@ public class LoggingInterceptorTest {
 
     @SuppressWarnings("unchecked")
     LoggingHandler<ReadRequest, ReadResponse> handler = Mockito.mock(LoggingHandler.class);
-    Mockito.when(handler.getEntry()).thenReturn(LogEntry.getDefaultInstance());
+    Mockito.when(handler.getDetails()).thenReturn(LogEntry.getDefaultInstance());
 
     LoggingInterceptor interceptor = getInterceptorWithAlwaysThisHandler(handler);
     Channel channel =
@@ -153,7 +153,7 @@ public class LoggingInterceptorTest {
     verify(handler, times(2)).handleResp(resultCaptor.capture());
     assertThat(resultCaptor.getAllValues().get(0)).isEqualTo(response1);
     assertThat(resultCaptor.getAllValues().get(1)).isEqualTo(response2);
-    verify(handler).getEntry();
+    verify(handler).getDetails();
   }
 
   @Test
@@ -191,7 +191,7 @@ public class LoggingInterceptorTest {
 
     @SuppressWarnings("unchecked")
     LoggingHandler<WriteRequest, WriteResponse> handler = Mockito.mock(LoggingHandler.class);
-    Mockito.when(handler.getEntry()).thenReturn(LogEntry.getDefaultInstance());
+    Mockito.when(handler.getDetails()).thenReturn(LogEntry.getDefaultInstance());
 
     LoggingInterceptor interceptor = getInterceptorWithAlwaysThisHandler(handler);
     Channel channel =
@@ -213,7 +213,7 @@ public class LoggingInterceptorTest {
     assertThat(resultCaptor.getAllValues().get(0)).isEqualTo(request1);
     assertThat(resultCaptor.getAllValues().get(1)).isEqualTo(request2);
     verify(handler).handleResp(response);
-    verify(handler).getEntry();
+    verify(handler).getDetails();
   }
 
   @Test
@@ -231,7 +231,7 @@ public class LoggingInterceptorTest {
 
     @SuppressWarnings("unchecked")
     LoggingHandler<ReadRequest, ReadResponse> handler = Mockito.mock(LoggingHandler.class);
-    Mockito.when(handler.getEntry()).thenReturn(LogEntry.getDefaultInstance());
+    Mockito.when(handler.getDetails()).thenReturn(LogEntry.getDefaultInstance());
 
     LoggingInterceptor interceptor = getInterceptorWithAlwaysThisHandler(handler);
     Channel channel =
@@ -243,6 +243,6 @@ public class LoggingInterceptorTest {
 
     verify(handler).handleReq(request);
     verify(handler, never()).handleResp(any());
-    verify(handler).getEntry();
+    verify(handler).getDetails();
   }
 }

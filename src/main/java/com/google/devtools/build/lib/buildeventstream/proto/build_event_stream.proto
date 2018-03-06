@@ -22,6 +22,10 @@ option java_outer_classname = "BuildEventStreamProtos";
 import "src/main/protobuf/invocation_policy.proto";
 import "src/main/protobuf/command_line.proto";
 
+import "google/devtools/remoteexecution/v1test/remote_execution.proto";
+import "google/longrunning/operations.proto";
+import "google/rpc/status.proto";
+
 // Identifier for a build event. It is deliberately structured to also provide
 // information about which build target etc the event is related to.
 //
@@ -188,6 +192,10 @@ message BuildEventId {
   message BuildToolLogsId {
   }
 
+  // Identifier of an event reporting an RPC.
+  message RpcCallId {
+  }
+
   oneof id {
     UnknownBuildEventId unknown = 1;
     ProgressId progress = 2;
@@ -210,6 +218,7 @@ message BuildEventId {
     TestSummaryId test_summary = 7;
     BuildFinishedId build_finished = 9;
     BuildToolLogsId build_tool_logs = 20;
+    RpcCallId rpc_call = 22;
   }
 }
 
@@ -637,5 +646,36 @@ message BuildEvent {
     TestSummary test_summary = 9;
     BuildFinished finished = 14;
     BuildToolLogs build_tool_logs = 23;
+    RpcCall rpc_call = 24;
   };
+}
+
+message RpcCall {
+  // Full method name of the method called as returned from
+  // io.grpc.MethodDescriptor.getFullMethodName() (i.e. in format
+  // $FULL_SERVICE_NAME/$METHOD_NAME).
+  string method_name = 1;
+
+  // Request metadata included in call.
+  google.devtools.remoteexecution.v1test.RequestMetadata metadata = 2;
+
+  // Status of the call on close.
+  google.rpc.Status status = 3;
+
+  RpcCallDetails details = 4;
+}
+
+message RpcCallDetails {
+  message ExecuteDetails {
+    // [Remote Execution API][google.devtools.remoteexecution.v1test.ExecuteResponse]
+    // sent by the Execute call.
+    google.devtools.remoteexecution.v1test.ExecuteRequest request = 1;
+    // The [google.longrunning.Operation][google.longrunning.Operation] received
+    // by the Execute call.
+    google.longrunning.Operation operation = 2;
+  }
+
+  oneof details {
+    ExecuteDetails execute = 1;
+  }
 }

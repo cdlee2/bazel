@@ -22,6 +22,7 @@ import com.google.devtools.build.lib.buildeventstream.PathConverter;
 import com.google.devtools.build.lib.buildtool.BuildRequest;
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.exec.ExecutorBuilder;
+import com.google.devtools.build.lib.remote.logging.LoggingInterceptor;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.runtime.BlazeModule;
 import com.google.devtools.build.lib.runtime.Command;
@@ -35,6 +36,7 @@ import com.google.devtools.common.options.OptionsBase;
 import com.google.devtools.common.options.OptionsProvider;
 import com.google.devtools.remoteexecution.v1test.Digest;
 import io.grpc.Channel;
+import io.grpc.ClientInterceptors;
 import java.io.IOException;
 import java.util.logging.Logger;
 
@@ -143,10 +145,14 @@ public final class RemoteModule extends BlazeModule {
       }
 
       final GrpcRemoteExecutor executor;
+      Channel ch = GoogleAuthUtils.newChannel(remoteOptions.remoteExecutor, authAndTlsOptions);
+      if (remoteOptions.experimentalRemoteExecutionLog) {
+        ch = ClientInterceptors.intercept(ch, new LoggingInterceptor(env.getReporter()));
+      }
       if (remoteOptions.remoteExecutor != null) {
         executor =
             new GrpcRemoteExecutor(
-                GoogleAuthUtils.newChannel(remoteOptions.remoteExecutor, authAndTlsOptions),
+                ch,
                 GoogleAuthUtils.newCallCredentials(authAndTlsOptions),
                 remoteOptions.remoteTimeout,
                 retrier);

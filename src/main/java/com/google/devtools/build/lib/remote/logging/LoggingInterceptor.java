@@ -14,8 +14,11 @@
 
 package com.google.devtools.build.lib.remote.logging;
 
+import com.google.devtools.build.lib.buildeventstream.GenericBuildEvent;
+import com.google.devtools.build.lib.events.Reporter;
 import com.google.devtools.build.lib.remote.logging.RemoteExecutionLog.LogEntry;
 import com.google.devtools.build.lib.remote.util.TracingMetadataUtils;
+import com.google.devtools.remoteexecution.v1test.ExecutionGrpc;
 import com.google.devtools.remoteexecution.v1test.RequestMetadata;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -26,10 +29,17 @@ import io.grpc.ForwardingClientCallListener;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
+import java.util.Collections;
 import javax.annotation.Nullable;
+import sun.misc.Request;
 
 /** Client interceptor for logging details of certain gRPC calls. */
 public class LoggingInterceptor implements ClientInterceptor {
+  private final Reporter reporter;
+
+  public LoggingInterceptor(Reporter reporter) {
+    this.reporter = reporter;
+  }
 
   /**
    * Returns a {@link LoggingHandler} to handle logging details for the specified method. If there
@@ -37,9 +47,12 @@ public class LoggingInterceptor implements ClientInterceptor {
    *
    * @param method Method to return handler for.
    */
-  protected <ReqT, RespT> @Nullable LoggingHandler<ReqT, RespT> selectHandler(
+  protected <ReqT, RespT> @Nullable LoggingHandler selectHandler(
       MethodDescriptor<ReqT, RespT> method) {
     // TODO(cdlee): add handlers for methods
+    if (method == ExecutionGrpc.METHOD_EXECUTE) {
+      return new ExecuteHandler();
+    }
     return null;
   }
 
@@ -49,7 +62,7 @@ public class LoggingInterceptor implements ClientInterceptor {
     ClientCall<ReqT, RespT> call = next.newCall(method, callOptions);
     LoggingHandler<ReqT, RespT> handler = selectHandler(method);
     if (handler != null) {
-      return new LoggingForwardingCall<>(call, handler, method);
+      return new LoggingForwardingCall<>(call, handler, method, reporter);
     } else {
       return call;
     }
@@ -61,23 +74,25 @@ public class LoggingInterceptor implements ClientInterceptor {
   private static class LoggingForwardingCall<ReqT, RespT>
       extends ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT> {
     private final LoggingHandler<ReqT, RespT> handler;
-    private final LogEntry.Builder entryBuilder;
+    private final Reporter reporter;
+    private final String methodName;
+    private RequestMetadata metadata;
 
     protected LoggingForwardingCall(
         ClientCall<ReqT, RespT> delegate,
         LoggingHandler<ReqT, RespT> handler,
-        MethodDescriptor<ReqT, RespT> method) {
+        MethodDescriptor<ReqT, RespT> method,
+        Reporter reporter) {
       super(delegate);
       this.handler = handler;
-      this.entryBuilder = LogEntry.newBuilder().setMethodName(method.getFullMethodName());
+      this.methodName = method.getFullMethodName();
+      this.reporter = reporter;
+      this.metadata = null;
     }
 
     @Override
     public void start(Listener<RespT> responseListener, Metadata headers) {
-      RequestMetadata metadata = TracingMetadataUtils.requestMetadataFromHeaders(headers);
-      if (metadata != null) {
-        entryBuilder.setMetadata(metadata);
-      }
+      metadata = TracingMetadataUtils.requestMetadataFromHeaders(headers);
       super.start(
           new ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(
               responseListener) {
@@ -89,9 +104,8 @@ public class LoggingInterceptor implements ClientInterceptor {
 
             @Override
             public void onClose(Status status, Metadata trailers) {
-              entryBuilder.setStatus(makeStatusProto(status));
               // TODO(cdlee): Actually store this and log the entry.
-              entryBuilder.mergeFrom(handler.getEntry()).build();
+              reporter.post(new RpcCallEvent(methodName, metadata, status, handler.getDetails()));
               super.onClose(status, trailers);
             }
           },
@@ -103,19 +117,5 @@ public class LoggingInterceptor implements ClientInterceptor {
       handler.handleReq(message);
       super.sendMessage(message);
     }
-  }
-
-  /** Converts io.grpc.Status to com.google.rpc.Status proto for logging. */
-  private static com.google.rpc.Status makeStatusProto(Status status) {
-    String message = "";
-    if (status.getCause() != null) {
-      message = status.getCause().toString();
-    } else if (status.getDescription() != null) {
-      message = status.getDescription();
-    }
-    return com.google.rpc.Status.newBuilder()
-        .setCode(status.getCode().value())
-        .setMessage(message)
-        .build();
   }
 }
