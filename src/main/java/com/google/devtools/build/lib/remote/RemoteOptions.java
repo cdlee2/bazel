@@ -230,7 +230,12 @@ public final class RemoteOptions extends OptionsBase {
       category = "remote",
       documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
       effectTags = {OptionEffectTag.UNKNOWN},
-      help = "If specified, a path to a file to log gRPC call related details."
+      help = "If specified, a path to a file to log gRPC call related details. This log consists "
+          + "of a sequence of serialized "
+          + "com.google.devtools.build.lib.remote.logging.RemoteExecutionLog.LogEntry "
+          + "protobufs with each message prefixed by a varint denoting the size of the following "
+          + "serialized protobuf message, as performed by the method "
+          + "Message.writeDelimitedTo(OutputStream)."
   )
   public String experimentalRemoteExecutionLog;
 }

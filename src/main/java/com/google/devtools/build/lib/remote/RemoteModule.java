@@ -131,7 +131,7 @@ public final class RemoteModule extends BlazeModule {
       boolean remoteOrLocalCache = SimpleBlobStoreFactory.isRemoteCacheOptions(remoteOptions);
       boolean grpcCache = GrpcRemoteCache.isRemoteCacheOptions(remoteOptions);
 
-      if (remoteOptions.experimentalRemoteExecutionLog.isEmpty()) {
+      if (!remoteOptions.experimentalRemoteExecutionLog.isEmpty()) {
         rpcLogFile = new AsynchronousFileOutputStream(remoteOptions.experimentalRemoteExecutionLog);
       }
 
@@ -195,6 +195,8 @@ public final class RemoteModule extends BlazeModule {
         rpcLogFile.close();
       } catch (IOException e) {
         throw new RuntimeException(e);
+      } finally {
+        rpcLogFile = null;
       }
     }
   }
