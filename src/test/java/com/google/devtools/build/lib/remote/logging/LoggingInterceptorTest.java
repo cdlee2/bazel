@@ -32,7 +32,14 @@ import com.google.bytestream.ByteStreamProto.WriteRequest;
 import com.google.bytestream.ByteStreamProto.WriteResponse;
 import com.google.devtools.build.lib.remote.logging.RemoteExecutionLog.LogEntry;
 import com.google.devtools.build.lib.remote.logging.RemoteExecutionLog.RpcCallDetails;
+import com.google.devtools.build.lib.remote.logging.RemoteExecutionLog.RpcCallDetails.ExecuteDetails;
 import com.google.devtools.build.lib.util.io.AsynchronousFileOutputStream;
+import com.google.devtools.remoteexecution.v1test.Action;
+import com.google.devtools.remoteexecution.v1test.ExecuteRequest;
+import com.google.devtools.remoteexecution.v1test.ExecutionGrpc;
+import com.google.devtools.remoteexecution.v1test.ExecutionGrpc.ExecutionBlockingStub;
+import com.google.devtools.remoteexecution.v1test.ExecutionGrpc.ExecutionImplBase;
+import com.google.longrunning.Operation;
 import com.google.protobuf.ByteString;
 import io.grpc.Channel;
 import io.grpc.ClientInterceptors;
@@ -127,6 +134,44 @@ public class LoggingInterceptorTest {
     verify(handler).handleReq(request);
     verify(handler).handleResp(response);
     verify(handler).getDetails();
+    verify(output).write(expectedEntry);
+  }
+
+  @Test
+  public void testExecuteCallOk() {
+    ExecuteRequest request =
+        ExecuteRequest.newBuilder()
+            .setInstanceName("test-instance")
+            .setAction(
+                Action.newBuilder().addOutputFiles("somefile"))
+            .build();
+    Operation response = Operation.newBuilder().setName("test-operation").build();
+;
+    serviceRegistry.addService(
+        new ExecutionImplBase() {
+          @Override
+          public void execute(ExecuteRequest request, StreamObserver<Operation> responseObserver) {
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+          }
+        });
+
+    @SuppressWarnings("unchecked")
+    AsynchronousFileOutputStream output = Mockito.mock(AsynchronousFileOutputStream.class);
+    LoggingInterceptor interceptor = new LoggingInterceptor(output);
+    Channel channel =
+        ClientInterceptors.intercept(
+            InProcessChannelBuilder.forName(fakeServerName).directExecutor().build(), interceptor);
+    ExecutionBlockingStub stub = ExecutionGrpc.newBlockingStub(channel);
+
+    stub.execute(request);
+    LogEntry expectedEntry = LogEntry.newBuilder()
+        .setMethodName(ExecutionGrpc.getExecuteMethod().getFullMethodName())
+        .setDetails(
+            RpcCallDetails.newBuilder().setExecute(
+                ExecuteDetails.newBuilder().setRequest(request).setOperation(response)))
+        .setStatus(com.google.rpc.Status.getDefaultInstance())
+        .build();
     verify(output).write(expectedEntry);
   }
 
