@@ -19,6 +19,7 @@ import com.google.devtools.build.lib.remote.util.TracingMetadataUtils;
 import com.google.devtools.build.lib.util.io.AsynchronousFileOutputStream;
 import com.google.devtools.remoteexecution.v1test.ExecutionGrpc;
 import com.google.devtools.remoteexecution.v1test.RequestMetadata;
+import com.google.watcher.v1.WatcherGrpc;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -50,6 +51,9 @@ public class LoggingInterceptor implements ClientInterceptor {
       MethodDescriptor<ReqT, RespT> method) {
     if (method == ExecutionGrpc.getExecuteMethod()) {
       return new ExecuteHandler();
+    } else if (method == WatcherGrpc.getWatchMethod()) {
+      System.out.println("Handling with interceptor: " + method.getFullMethodName());
+      return new WatchHandler();
     }
     return null;
   }
@@ -72,6 +76,7 @@ public class LoggingInterceptor implements ClientInterceptor {
    */
   private class LoggingForwardingCall<ReqT, RespT>
       extends ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT> {
+
     private final LoggingHandler<ReqT, RespT> handler;
     private final LogEntry.Builder entryBuilder;
 
@@ -96,11 +101,13 @@ public class LoggingInterceptor implements ClientInterceptor {
             @Override
             public void onMessage(RespT message) {
               handler.handleResp(message);
+              System.out.println("Received message. Method: " + entryBuilder.getMethodName());
               super.onMessage(message);
             }
 
             @Override
             public void onClose(Status status, Metadata trailers) {
+              System.out.println("Closed: " + entryBuilder.getMethodName());
               entryBuilder.setStatus(makeStatusProto(status));
               LogEntry merged = entryBuilder.setDetails(handler.getDetails()).build();
               rpcLogFile.write(merged);

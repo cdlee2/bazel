@@ -121,15 +121,25 @@ http_file(
         "https://cdn.azul.com/zulu/bin/zulu8.28.0.1-jdk8.0.163-win_x64.zip",
     ],
 )
-
+'''
 http_archive(
-    name = "bazel_toolchains",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/f3b09700fae5d7b6e659d7cefe0dcc6e8498504c.tar.gz",
-        "https://github.com/bazelbuild/bazel-toolchains/archive/f3b09700fae5d7b6e659d7cefe0dcc6e8498504c.tar.gz",
-    ],
-    strip_prefix = "bazel-toolchains-f3b09700fae5d7b6e659d7cefe0dcc6e8498504c",
-    sha256 = "ed829b5eea8af1f405f4cc3d6ecfc3b1365bb7843171036030a31b5127002311",
+ name = "bazel_toolchains",
+ urls = [
+   "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/acffd62731b1545c32e1c34e72fd526598ab9a66.tar.gz",
+   "https://github.com/bazelbuild/bazel-toolchains/archive/acffd62731b1545c32e1c34e72fd526598ab9a66.tar.gz",
+ ],
+ strip_prefix = "bazel-toolchains-acffd62731b1545c32e1c34e72fd526598ab9a66",
+ sha256 = "f820436a685db00945df1282df7688187b48aeed91c17686023712afcf453996",
+)
+'''
+http_archive(
+  name = "bazel_toolchains",
+  urls = [
+    "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/44200e0c026d86c53470d107b3697a3e46469c43.tar.gz",
+    "https://github.com/bazelbuild/bazel-toolchains/archive/44200e0c026d86c53470d107b3697a3e46469c43.tar.gz",
+  ],
+  strip_prefix = "bazel-toolchains-44200e0c026d86c53470d107b3697a3e46469c43",
+  sha256 = "699b55a6916c687f4b7dc092dbbf5f64672cde0dc965f79717735ec4e5416556",
 )
 
 http_archive(
